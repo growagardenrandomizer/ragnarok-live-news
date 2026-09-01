@@ -3,7 +3,6 @@ import json
 import requests
 from bs4 import BeautifulSoup
 
-# Palitan ito ng iyong aktwal na Gist ID at Filename
 GIST_ID = "e269fe94e14da306ca248e04d8960ae3"
 GIST_FILENAME = "events.json"
 GITHUB_TOKEN = os.environ.get("GIST_TOKEN")
@@ -11,7 +10,7 @@ GITHUB_TOKEN = os.environ.get("GIST_TOKEN")
 URL = "https://gwww.gnjoy.hk/sea_official/list.html?srtl=3284.0.0.0&language=en-US"
 
 def scrape_announcements():
-    headers = {"User-Agent": "Mozilla/5.0"}
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
     response = requests.get(URL, headers=headers)
     
     if response.status_code != 200:
@@ -21,34 +20,46 @@ def scrape_announcements():
     soup = BeautifulSoup(response.text, 'html.parser')
     announcements = []
 
-    items = soup.find_all('li')
-    
-    for item in items[:10]:
+    # Subukan nating hanapin ang lahat ng posibleng list items o news links sa page
+    items = soup.find_all(['li', 'div'], class_=['news-item', 'item'])
+    if not items:
+        # Fallback kung generic tags lang ang available
+        items = soup.find_all('li')
+
+    for index, item in enumerate(items[:10], start=1):
         title_element = item.find('a')
-        date_element = item.find('span')
+        date_element = item.find(['span', 'p', 'div'])
         
         if title_element:
             title = title_element.get_text(strip=True)
             link = title_element.get('href', '')
-            date = date_element.get_text(strip=True) if date_element else ""
+            date = date_element.get_text(strip=True) if date_element else "Recent"
             
-            announcements.append({
-                "title": title,
-                "date": date,
-                "link": link
-            })
+            if title and len(title) > 3: # Siguraduhing may laman ang pamagat
+                announcements.append({
+                    "id": str(index),
+                    "title": title,
+                    "date": date,
+                    "link": link,
+                    "content": f"Official Ragnarok update: {title}"
+                })
 
     return announcements
 
-def update_gist(data):
-    if not data:
-        print("No data to update.")
+def update_gist(news_data):
+    if not news_data:
+        print("Walang nakuhang data mula sa scraping.")
         return
+
+    payload_data = {
+        "news": news_data,
+        "events": [] 
+    }
 
     gist_data = {
         "files": {
             GIST_FILENAME: {
-                "content": json.dumps(data, indent=2, ensure_ascii=False)
+                "content": json.dumps(payload_data, indent=2, ensure_ascii=False)
             }
         }
     }
